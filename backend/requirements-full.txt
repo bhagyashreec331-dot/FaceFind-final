@@ -1,0 +1,16 @@
+# Optional, for production: install these on top of requirements.txt to turn
+# on real MySQL, Cloudflare R2, and AI face matching.
+#
+#   pip install -r requirements.txt -r requirements-full.txt
+#
+# Face matching uses InsightFace (ArcFace) on ONNX Runtime — no dlib, no CMake.
+# The model pack (~280 MB) downloads automatically on first run.
+# On Windows, `pip install insightface` may need the "Microsoft C++ Build
+# Tools" (it compiles a small Cython extension).
+-r requirements.txt
+PyMySQL==1.1.1
+boto3==1.35.0
+numpy==1.26.4
+opencv-python-headless==4.10.0.84
+onnxruntime==1.18.1
+insightface==0.7.3
