@@ -29,8 +29,7 @@ def create_app():
 
     init_db(app)
 
-    # Load the face model in the background so the first upload isn't slow.
-    threading.Thread(target=face_utils.warm_up, daemon=True).start()
+   
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(events_bp)
