@@ -1,4 +1,5 @@
 import os
+
 from urllib.parse import quote_plus
 
 from dotenv import load_dotenv
@@ -20,27 +21,13 @@ class Config:
 
     JWT_EXP_HOURS = int(os.getenv("JWT_EXP_HOURS", "24"))
 
-    # Database engine: "sqlite" (default, zero setup — a local .db file) or
-    # "mysql" (set DB_ENGINE=mysql and fill in the DB_* values below for
-    # production). SQLite needs nothing installed or configured to work.
+    # Database
+    # Supabase PostgreSQL connection
 
-    DB_ENGINE = os.getenv("DB_ENGINE", "sqlite")
+    DATABASE_URL = os.getenv("DATABASE_URL", "")
 
-    DB_HOST = os.getenv("DB_HOST", "localhost")
-
-    DB_PORT = os.getenv("DB_PORT", "3306")
-
-    DB_NAME = os.getenv("DB_NAME", "facefind")
-
-    DB_USER = os.getenv("DB_USER", "root")
-
-    DB_PASSWORD = os.getenv("DB_PASSWORD", "")
-
-    if DB_ENGINE == "mysql":
-        SQLALCHEMY_DATABASE_URI = (
-            f"mysql+pymysql://{DB_USER}:{quote_plus(DB_PASSWORD)}"
-            f"@{DB_HOST}:{DB_PORT}/{DB_NAME}"
-        )
+    if DATABASE_URL:
+        SQLALCHEMY_DATABASE_URI = DATABASE_URL
     else:
         _basedir = os.path.abspath(os.path.dirname(__file__))
         SQLALCHEMY_DATABASE_URI = (

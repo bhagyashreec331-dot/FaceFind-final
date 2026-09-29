@@ -1,13 +1,10 @@
 """
 Photo storage helpers.
 
-Two backends:
-
-- "local" (default): saves files under backend/uploads/ and serves them back
-  through the Flask app's /media/<path> route.
-
-- "r2": Cloudflare R2 (S3-compatible), used in production. Set
-  STORAGE_BACKEND=r2 and fill in the R2_* values in .env to switch to it.
+Supported storage backends:
+- local
+- r2
+- supabase
 """
 
 import os
@@ -35,9 +32,12 @@ def is_valid_image(filename, file_size_bytes):
 
 def build_storage_key(event_id, filename, prefix="photos"):
     ext = filename.rsplit(".", 1)[-1].lower()
-
     return f"{prefix}/{event_id}/{uuid.uuid4()}.{ext}"
 
+
+# ============================================================
+# LOCAL STORAGE
+# ============================================================
 
 def _local_path(storage_key):
     basedir = os.path.abspath(
@@ -58,74 +58,106 @@ def _local_path(storage_key):
     return path
 
 
-def upload_file(
+# ============================================================
+# SUPABASE
+# ============================================================
+
+def _supabase_client():
+    from supabase import create_client
+
+    url = os.getenv("SUPABASE_URL")
+    key = os.getenv("SUPABASE_SERVICE_KEY")
+
+    if not url:
+        raise RuntimeError("SUPABASE_URL is not configured")
+
+    if not key:
+        raise RuntimeError("SUPABASE_SERVICE_KEY is not configured")
+
+    return create_client(url, key)
+
+
+def _supabase_bucket():
+    return os.getenv(
+        "SUPABASE_STORAGE_BUCKET",
+        "facefind",
+    )
+
+
+def _supabase_upload_file(
     local_path,
     storage_key,
-    content_type="image/jpeg",
+    content_type,
 ):
-    if Config.STORAGE_BACKEND == "r2":
-        return _r2_upload_file(
-            local_path,
-            storage_key,
-            content_type,
+    client = _supabase_client()
+    bucket = _supabase_bucket()
+
+    with open(local_path, "rb") as file:
+        client.storage.from_(bucket).upload(
+            path=storage_key,
+            file=file,
+            file_options={
+                "content-type": content_type,
+                "upsert": "false",
+            },
         )
-
-    dest = _local_path(storage_key)
-
-    shutil.copyfile(
-        local_path,
-        dest,
-    )
 
     return storage_key
 
 
-# ============================================================
-# GET PHOTO URL
-# ============================================================
+def _supabase_get_signed_url(
+    storage_key,
+    expires_in,
+):
+    client = _supabase_client()
+    bucket = _supabase_bucket()
 
-def get_signed_url(storage_key, expires_in=3600):
-    """
-    Return a URL that the frontend can use to display/download
-    the stored photo.
-    """
-
-    if Config.STORAGE_BACKEND == "r2":
-        return _r2_get_signed_url(
+    response = (
+        client.storage
+        .from_(bucket)
+        .create_signed_url(
             storage_key,
             expires_in,
         )
+    )
 
-    return f"{Config.PUBLIC_BASE_URL}/media/{storage_key}"
+    # Handle different supabase-py response formats
+    data = getattr(response, "data", response)
+
+    if isinstance(data, dict):
+        signed_url = (
+            data.get("signedURL")
+            or data.get("signedUrl")
+            or data.get("signed_url")
+        )
+    else:
+        signed_url = (
+            getattr(data, "signedURL", None)
+            or getattr(data, "signedUrl", None)
+            or getattr(data, "signed_url", None)
+        )
+
+    if not signed_url:
+        raise RuntimeError(
+            f"Could not create signed URL for: {storage_key}"
+        )
+
+    return signed_url
+
+
+def _supabase_delete_file(storage_key):
+    client = _supabase_client()
+    bucket = _supabase_bucket()
+
+    return (
+        client.storage
+        .from_(bucket)
+        .remove([storage_key])
+    )
 
 
 # ============================================================
-# DELETE PHOTO FROM STORAGE
-# ============================================================
-
-def delete_file(storage_key):
-    """
-    Delete a stored photo or thumbnail.
-
-    Works with both:
-    - local storage
-    - Cloudflare R2
-    """
-
-    if not storage_key:
-        return
-
-    if Config.STORAGE_BACKEND == "r2":
-        return _r2_delete_file(storage_key)
-
-    path = _local_path(storage_key)
-
-    if os.path.exists(path):
-        os.remove(path)
-
-
-# ============================================================
-# CLOUDFLARE R2
+# R2
 # ============================================================
 
 def _r2_client():
@@ -186,3 +218,96 @@ def _r2_delete_file(storage_key):
         Bucket=Config.R2_BUCKET_NAME,
         Key=storage_key,
     )
+
+
+# ============================================================
+# UPLOAD FILE
+# ============================================================
+
+def upload_file(
+    local_path,
+    storage_key,
+    content_type="image/jpeg",
+):
+    if Config.STORAGE_BACKEND == "supabase":
+        return _supabase_upload_file(
+            local_path,
+            storage_key,
+            content_type,
+        )
+
+    if Config.STORAGE_BACKEND == "r2":
+        return _r2_upload_file(
+            local_path,
+            storage_key,
+            content_type,
+        )
+
+    # Local storage
+    dest = _local_path(storage_key)
+
+    shutil.copyfile(
+        local_path,
+        dest,
+    )
+
+    return storage_key
+
+
+# ============================================================
+# GET PHOTO URL
+# ============================================================
+
+def get_signed_url(
+    storage_key,
+    expires_in=3600,
+):
+    """
+    Return a URL that the frontend can use
+    to display/download the stored photo.
+    """
+
+    if Config.STORAGE_BACKEND == "supabase":
+        return _supabase_get_signed_url(
+            storage_key,
+            expires_in,
+        )
+
+    if Config.STORAGE_BACKEND == "r2":
+        return _r2_get_signed_url(
+            storage_key,
+            expires_in,
+        )
+
+    # Local storage
+    return f"{Config.PUBLIC_BASE_URL}/media/{storage_key}"
+
+
+# ============================================================
+# DELETE PHOTO FROM STORAGE
+# ============================================================
+
+def delete_file(storage_key):
+    """
+    Delete a stored photo or thumbnail.
+
+    Works with:
+    - local storage
+    - Cloudflare R2
+    - Supabase Storage
+    """
+
+    if not storage_key:
+        return
+
+    if Config.STORAGE_BACKEND == "supabase":
+        return _supabase_delete_file(storage_key)
+
+    if Config.STORAGE_BACKEND == "r2":
+        return _r2_delete_file(storage_key)
+
+    # Local storage
+    path = _local_path(storage_key)
+
+    if os.path.exists(path):
+        os.remove(path)
