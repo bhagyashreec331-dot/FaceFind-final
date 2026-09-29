@@ -1,6 +1,3 @@
-# Core — everything needed to run the app locally with SQLite + local file
-# storage, real JWT auth, real Google OAuth, and real password-reset email.
-# Installs fast, no compiler required.
 Flask==3.0.3
 Flask-Cors==4.0.1
 Flask-SQLAlchemy==3.1.1
@@ -10,3 +7,15 @@ PyJWT==2.10.1
 python-dotenv==1.0.1
 Pillow==10.4.0
 requests==2.32.3
+
+PyMySQL==1.1.1
+psycopg[binary]
+supabase==2.18.1
+boto3==1.35.0
+
+numpy==1.26.4
+opencv-python-headless==4.10.0.84
+onnxruntime==1.18.1
+insightface==0.7.3
+
+gunicorn
