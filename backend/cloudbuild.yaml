@@ -4,6 +4,7 @@ options:
 steps:
   - name: 'gcr.io/k8s-skaffold/pack'
     entrypoint: 'pack'
+    dir: 'backend'
     args:
       - 'build'
       - 'asia-south1-docker.pkg.dev/project-a9ea24ba-06f6-4197-b53/cloud-run-source-deploy/facefind-backend:latest'
@@ -15,7 +16,13 @@ steps:
       - '--env'
       - 'GOOGLE_PYTHON_VERSION=3.11.11'
       - '--env'
-      - 'GOOGLE_ENTRYPOINT=gunicorn --bind :$PORT --workers 1 --threads 1 --timeout 300 "app:create_app()"'
+      - 'GOOGLE_ENTRYPOINT=gunicorn --bind :8080 --workers 1 --threads 1 --timeout 300 "app:create_app()"'
+
+  - name: 'gcr.io/k8s-skaffold/pack'
+    entrypoint: 'pack'
+    args:
+      - 'pull'
+      - 'asia-south1-docker.pkg.dev/project-a9ea24ba-06f6-4197-b53/cloud-run-source-deploy/facefind-backend:latest'
 
 images:
   - 'asia-south1-docker.pkg.dev/project-a9ea24ba-06f6-4197-b53/cloud-run-source-deploy/facefind-backend:latest'
