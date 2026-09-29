@@ -1,0 +1,21 @@
+options:
+  logging: CLOUD_LOGGING_ONLY
+
+steps:
+  - name: 'gcr.io/k8s-skaffold/pack'
+    entrypoint: 'pack'
+    args:
+      - 'build'
+      - 'asia-south1-docker.pkg.dev/project-a9ea24ba-06f6-4197-b53/cloud-run-source-deploy/facefind-backend:latest'
+      - '--builder'
+      - 'gcr.io/buildpacks/builder:latest'
+      - '--network'
+      - 'cloudbuild'
+      - '--publish'
+      - '--env'
+      - 'GOOGLE_PYTHON_VERSION=3.11.11'
+      - '--env'
+      - 'GOOGLE_ENTRYPOINT=gunicorn --bind :$PORT --workers 1 --threads 1 --timeout 300 "app:create_app()"'
+
+images:
+  - 'asia-south1-docker.pkg.dev/project-a9ea24ba-06f6-4197-b53/cloud-run-source-deploy/facefind-backend:latest'
