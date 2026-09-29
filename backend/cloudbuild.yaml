@@ -9,7 +9,7 @@ steps:
       - 'build'
       - 'asia-south1-docker.pkg.dev/project-a9ea24ba-06f6-4197-b53/cloud-run-source-deploy/facefind-backend:latest'
       - '--builder'
-      - 'gcr.io/buildpacks/builder:latest'
+      - 'gcr.io/buildpacks/builder:google-22'
       - '--network'
       - 'cloudbuild'
       - '--publish'
