@@ -43,14 +43,10 @@ export default function EventGallery() {
 
   const isPhotographer = user?.role === 'photographer';
 
-  // Participant My Photos should not repeat photos already shown
-  // in the Public Gallery. Only show matched photos that are not public.
-  const matchedOnlyPhotos = privatePhotos.filter(
-    (photo) =>
-      !publicPhotos.some(
-        (publicPhoto) => publicPhoto.id === photo.id
-      )
-  );
+  // Participant My Photos shows every photo matched to
+  // the participant's face, whether the photographer uploaded
+  // it as public or private.
+  const matchedOnlyPhotos = privatePhotos;
 
 
   // ============================================================
@@ -124,6 +120,7 @@ export default function EventGallery() {
 
       setPrivatePhotos(matches);
       setMatched(true);
+      setTab('private');
 
     } catch (err) {
       setError(

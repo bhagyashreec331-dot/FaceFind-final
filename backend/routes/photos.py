@@ -574,7 +574,6 @@ def upload_selfie(event_id):
     )
     for photo in Photo.query.filter_by(
         event_id=event_id,
-        is_public=True
     ).all()
 }
 
