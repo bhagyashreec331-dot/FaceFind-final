@@ -26,14 +26,12 @@ export default function Footer() {
           <h4>Account</h4>
           <Link to="/login">Login</Link>
           <Link to="/register">Register</Link>
-          <Link to="/join-event">Join an Event</Link>
         </div>
 
         <div className="footer-col">
           <h4>Legal</h4>
           <Link to="/terms">Terms & Conditions</Link>
           <Link to="/privacy">Privacy Policy</Link>
-          <a href="mailto:support@facefind.app">Contact Support</a>
         </div>
       </div>
 

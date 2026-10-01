@@ -569,13 +569,36 @@ def upload_selfie(event_id):
         ), 422
 
     photo_embeddings = {
-    photo.id: (
-        photo.face_embeddings or []
+        photo.id: (
+            photo.face_embeddings or []
+        )
+        for photo in Photo.query.filter_by(
+            event_id=event_id,
+            is_public=False,
+        ).all()
+    }
+
+    # Remove any old match records that point to PUBLIC photos.
+    # This prevents previously matched public photos from continuing
+    # to appear in the participant's Private / My Photos gallery.
+    stale_public_matches = (
+        SelfieMatch.query
+        .join(
+            Photo,
+            SelfieMatch.photo_id == Photo.id
+        )
+        .filter(
+            SelfieMatch.event_id == event_id,
+            SelfieMatch.user_id == g.user_id,
+            Photo.is_public.is_(True),
+        )
+        .all()
     )
-    for photo in Photo.query.filter_by(
-        event_id=event_id,
-    ).all()
-}
+
+    for stale_match in stale_public_matches:
+        db.session.delete(stale_match)
+
+    db.session.flush()
 
     matches = face_utils.find_matches_for_selfie(
         selfie_embedding,

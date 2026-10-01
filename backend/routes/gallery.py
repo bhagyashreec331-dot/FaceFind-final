@@ -7,6 +7,7 @@ from flask import Blueprint, g, jsonify, send_file
 
 from config import Config
 from db import Event, Photo, SelfieMatch
+
 from utils import storage
 from utils.auth_utils import login_required
 
@@ -18,10 +19,19 @@ gallery_bp = Blueprint(
 )
 
 
+# ============================================================
+# PHOTO PAYLOAD
+# ============================================================
+
 def _photo_payload(photo, similarity_score=None):
+
     payload = {
         "id": photo.id,
-        "url": storage.get_signed_url(photo.storage_key),
+
+        "url": storage.get_signed_url(
+            photo.storage_key
+        ),
+
         # Falls back to the full image if no thumbnail was generated.
         "thumb_url": storage.get_signed_url(
             photo.thumb_storage_key or photo.storage_key
@@ -40,6 +50,7 @@ def _photo_payload(photo, similarity_score=None):
 
 @gallery_bp.get("/<event_id>/public")
 def public_gallery(event_id):
+
     """
     Every public photo uploaded to the event.
     No login required.
@@ -51,7 +62,10 @@ def public_gallery(event_id):
     ).all()
 
     return jsonify(
-        [_photo_payload(photo) for photo in photos]
+        [
+            _photo_payload(photo)
+            for photo in photos
+        ]
     )
 
 
@@ -62,8 +76,12 @@ def public_gallery(event_id):
 @gallery_bp.get("/<event_id>/private")
 @login_required
 def private_gallery(event_id):
+
     """
     Photos matched to the requesting participant's selfie only.
+
+    Only PRIVATE photos are returned.
+    Public photos must never appear in My Photos.
     """
 
     matches = (
@@ -80,15 +98,28 @@ def private_gallery(event_id):
     results = []
 
     for match in matches:
-        photo = Photo.query.get(match.photo_id)
 
-        if photo:
-            results.append(
-                _photo_payload(
-                    photo,
-                    match.similarity_score
-                )
+        photo = Photo.query.get(
+            match.photo_id
+        )
+
+        # IMPORTANT:
+        # Only include private photos.
+        if not photo:
+            continue
+
+        if photo.event_id != event_id:
+            continue
+
+        if photo.is_public:
+            continue
+
+        results.append(
+            _photo_payload(
+                photo,
+                match.similarity_score
             )
+        )
 
     return jsonify(results)
 
@@ -100,12 +131,17 @@ def private_gallery(event_id):
 @gallery_bp.get("/<event_id>/photographer-private")
 @login_required
 def photographer_private_gallery(event_id):
+
     """
-    Shows only photos uploaded as PRIVATE by the event photographer.
+    Shows only photos uploaded as PRIVATE by the
+    event photographer.
+
     Public photos are NOT included here.
     """
 
-    event = Event.query.get(event_id)
+    event = Event.query.get(
+        event_id
+    )
 
     if not event:
         return jsonify(
@@ -125,7 +161,10 @@ def photographer_private_gallery(event_id):
     ).all()
 
     return jsonify(
-        [_photo_payload(photo) for photo in photos]
+        [
+            _photo_payload(photo)
+            for photo in photos
+        ]
     )
 
 
@@ -134,17 +173,24 @@ def photographer_private_gallery(event_id):
 # ============================================================
 
 def _zip_response(photos, zip_name):
+
     """
     Bundle the given photos into one ZIP file
     and stream it back.
+
+    Works with Supabase, R2 and other storage
+    backends by downloading each file through
+    its signed URL.
     """
 
     buf = io.BytesIO()
 
+    added_count = 0
+
     with zipfile.ZipFile(
         buf,
         "w",
-        zipfile.ZIP_STORED
+        zipfile.ZIP_DEFLATED
     ) as zf:
 
         for i, photo in enumerate(
@@ -152,49 +198,87 @@ def _zip_response(photos, zip_name):
             start=1
         ):
 
-            ext = photo.storage_key.rsplit(
-                ".",
-                1
-            )[-1]
+            # ------------------------------------------------
+            # GET SIGNED URL
+            # ------------------------------------------------
 
-            arcname = f"facefind-{i:03d}.{ext}"
+            try:
 
-            if Config.STORAGE_BACKEND == "r2":
-
-                res = requests.get(
-                    storage.get_signed_url(
-                        photo.storage_key
-                    ),
-                    timeout=30
-                )
-
-                if res.ok:
-                    zf.writestr(
-                        arcname,
-                        res.content
-                    )
-
-            else:
-
-                basedir = os.path.abspath(
-                    os.path.dirname(
-                        os.path.dirname(
-                            __file__
-                        )
-                    )
-                )
-
-                path = os.path.join(
-                    basedir,
-                    Config.LOCAL_STORAGE_DIR,
+                signed_url = storage.get_signed_url(
                     photo.storage_key
                 )
 
-                if os.path.exists(path):
-                    zf.write(
-                        path,
-                        arcname
-                    )
+            except Exception:
+                continue
+
+
+            # ------------------------------------------------
+            # DOWNLOAD ACTUAL IMAGE
+            # ------------------------------------------------
+
+            try:
+
+                res = requests.get(
+                    signed_url,
+                    timeout=30
+                )
+
+                res.raise_for_status()
+
+            except requests.RequestException:
+                continue
+
+
+            # ------------------------------------------------
+            # FILE EXTENSION
+            # ------------------------------------------------
+
+            ext = "jpg"
+
+            if "." in photo.storage_key:
+
+                ext = (
+                    photo.storage_key
+                    .rsplit(".", 1)[-1]
+                    .lower()
+                )
+
+
+            # ------------------------------------------------
+            # ZIP FILE NAME
+            # ------------------------------------------------
+
+            arcname = (
+                f"facefind-{i:03d}.{ext}"
+            )
+
+
+            # ------------------------------------------------
+            # ADD IMAGE TO ZIP
+            # ------------------------------------------------
+
+            zf.writestr(
+                arcname,
+                res.content
+            )
+
+            added_count += 1
+
+
+    # --------------------------------------------------------
+    # DON'T RETURN AN EMPTY ZIP
+    # --------------------------------------------------------
+
+    if added_count == 0:
+
+        return jsonify(
+            message="Could not retrieve any photos from storage."
+        ), 500
+
+
+    # --------------------------------------------------------
+    # SEND ZIP
+    # --------------------------------------------------------
 
     buf.seek(0)
 
@@ -213,9 +297,10 @@ def _zip_response(photos, zip_name):
 @gallery_bp.get("/<event_id>/private/zip")
 @login_required
 def private_zip(event_id):
+
     """
-    Download every photo matched to the requesting participant
-    as one ZIP.
+    Download every PRIVATE photo matched to the
+    requesting participant as one ZIP.
     """
 
     matches = SelfieMatch.query.filter_by(
@@ -223,23 +308,51 @@ def private_zip(event_id):
         user_id=g.user_id
     ).all()
 
-    photos = [
-        Photo.query.get(match.photo_id)
-        for match in matches
-    ]
 
-    photos = [
-        photo
-        for photo in photos
-        if photo
-    ]
+    # --------------------------------------------------------
+    # GET ONLY VALID PRIVATE PHOTOS
+    # --------------------------------------------------------
+
+    photos = []
+
+    for match in matches:
+
+        photo = Photo.query.get(
+            match.photo_id
+        )
+
+        if not photo:
+            continue
+
+        if photo.event_id != event_id:
+            continue
+
+        # Public photos must never be included
+        # in participant private ZIP.
+        if photo.is_public:
+            continue
+
+        photos.append(photo)
+
+
+    # --------------------------------------------------------
+    # NO PHOTOS
+    # --------------------------------------------------------
 
     if not photos:
+
         return jsonify(
-            message="No matched photos to download yet."
+            message="No matched private photos to download yet."
         ), 404
 
-    event = Event.query.get(event_id)
+
+    # --------------------------------------------------------
+    # ZIP NAME
+    # --------------------------------------------------------
+
+    event = Event.query.get(
+        event_id
+    )
 
     name = (
         event.name
@@ -249,6 +362,11 @@ def private_zip(event_id):
         " ",
         "-"
     )
+
+
+    # --------------------------------------------------------
+    # CREATE ZIP
+    # --------------------------------------------------------
 
     return _zip_response(
         photos,
@@ -262,6 +380,7 @@ def private_zip(event_id):
 
 @gallery_bp.get("/<event_id>/public/zip")
 def public_zip(event_id):
+
     """
     Download the whole public gallery as one ZIP.
     """
@@ -271,12 +390,25 @@ def public_zip(event_id):
         is_public=True
     ).all()
 
+
+    # --------------------------------------------------------
+    # NO PUBLIC PHOTOS
+    # --------------------------------------------------------
+
     if not photos:
+
         return jsonify(
             message="This event has no public photos yet."
         ), 404
 
-    event = Event.query.get(event_id)
+
+    # --------------------------------------------------------
+    # ZIP NAME
+    # --------------------------------------------------------
+
+    event = Event.query.get(
+        event_id
+    )
 
     name = (
         event.name
@@ -286,6 +418,11 @@ def public_zip(event_id):
         " ",
         "-"
     )
+
+
+    # --------------------------------------------------------
+    # CREATE ZIP
+    # --------------------------------------------------------
 
     return _zip_response(
         photos,

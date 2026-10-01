@@ -25,8 +25,12 @@ export default function ParticipantDashboard() {
       return;
     }
 
-    Promise.all(ids.map((id) => getEvent(id).catch(() => null)))
-      .then((results) => setEvents(results.filter(Boolean)))
+    Promise.all(
+      ids.map((id) => getEvent(id).catch(() => null))
+    )
+      .then((results) =>
+        setEvents(results.filter(Boolean))
+      )
       .finally(() => setLoading(false));
   }, []);
 
@@ -35,7 +39,9 @@ export default function ParticipantDashboard() {
       `Are you sure you want to leave "${eventName}"?`
     );
 
-    if (!confirmed) return;
+    if (!confirmed) {
+      return;
+    }
 
     const currentIds = getJoinedEventIds();
 
@@ -49,31 +55,17 @@ export default function ParticipantDashboard() {
     );
 
     setEvents((currentEvents) =>
-      currentEvents.filter((event) => event.id !== eventId)
+      currentEvents.filter(
+        (event) => event.id !== eventId
+      )
     );
   };
 
   return (
     <Layout>
       <div className="dash">
-        <aside className="dash-side">
-          <Link
-            to="/dashboard/participant"
-            className="active"
-          >
-            Dashboard
-          </Link>
-
-          <Link to="/join-event">
-            Join event
-          </Link>
-
-          <Link to="/dashboard/account">
-            Account settings
-          </Link>
-        </aside>
-
         <div className="dash-main">
+
           <div className="dash-head">
             <div>
               <h2>
@@ -106,8 +98,8 @@ export default function ParticipantDashboard() {
             <p>Loading your events…</p>
           ) : events.length === 0 ? (
             <div className="empty-state">
-              You haven't joined an event yet. Enter an event code to see your
-              matched photos.
+              You haven't joined an event yet. Enter an
+              event code to see your matched photos.
             </div>
           ) : (
             <div className="grid-3">
@@ -125,7 +117,11 @@ export default function ParticipantDashboard() {
                     {ev.name}
                   </h3>
 
-                  <p style={{ marginBottom: 12 }}>
+                  <p
+                    style={{
+                      marginBottom: 12,
+                    }}
+                  >
                     {ev.photo_count} photos in gallery
                   </p>
 
@@ -157,6 +153,7 @@ export default function ParticipantDashboard() {
               ))}
             </div>
           )}
+
         </div>
       </div>
     </Layout>

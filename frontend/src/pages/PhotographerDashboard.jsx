@@ -15,7 +15,9 @@ export default function PhotographerDashboard() {
   const { user } = useAuth();
 
   const [events, setEvents] = useState([]);
+
   const [loading, setLoading] = useState(true);
+
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -84,25 +86,11 @@ export default function PhotographerDashboard() {
   return (
     <Layout>
       <div className="dash">
-        <aside className="dash-side">
-          <Link
-            to="/dashboard/photographer"
-            className="active"
-          >
-            Dashboard
-          </Link>
-
-          <Link to="/create-event">
-            Create event
-          </Link>
-
-          <Link to="/dashboard/account">
-            Account settings
-          </Link>
-        </aside>
 
         <div className="dash-main">
+
           <div className="dash-head">
+
             <div>
               <h2>
                 Welcome back,{' '}
@@ -121,14 +109,18 @@ export default function PhotographerDashboard() {
             >
               + Create event
             </Link>
+
           </div>
 
           {/* STATISTICS */}
+
           <div
             className="grid-3"
             style={{ marginBottom: 32 }}
           >
+
             <div className="stat-card">
+
               <div className="num">
                 {events.length}
               </div>
@@ -136,9 +128,11 @@ export default function PhotographerDashboard() {
               <div className="label">
                 Active events
               </div>
+
             </div>
 
             <div className="stat-card">
+
               <div className="num">
                 {totalPhotos}
               </div>
@@ -146,9 +140,11 @@ export default function PhotographerDashboard() {
               <div className="label">
                 Photos uploaded
               </div>
+
             </div>
 
             <div className="stat-card">
+
               <div className="num">
                 {totalFacesMatched}
               </div>
@@ -156,7 +152,9 @@ export default function PhotographerDashboard() {
               <div className="label">
                 Faces matched
               </div>
+
             </div>
+
           </div>
 
           <h3
@@ -178,20 +176,28 @@ export default function PhotographerDashboard() {
           )}
 
           {loading ? (
+
             <p>Loading your events…</p>
+
           ) : events.length === 0 ? (
+
             <div className="empty-state">
               You haven't created an event yet. Create
               one to get an event code you can share with
               attendees.
             </div>
+
           ) : (
+
             <div className="grid-3">
+
               {events.map((ev) => (
+
                 <div
                   className="corner-card"
                   key={ev.id}
                 >
+
                   <h3
                     style={{
                       fontSize: '1rem',
@@ -226,6 +232,7 @@ export default function PhotographerDashboard() {
                       gap: 8,
                     }}
                   >
+
                     <Link
                       to={`/upload-photos/${ev.id}`}
                       className="btn btn-outline"
@@ -249,12 +256,19 @@ export default function PhotographerDashboard() {
                     >
                       Delete event
                     </button>
+
                   </div>
+
                 </div>
+
               ))}
+
             </div>
+
           )}
+
         </div>
+
       </div>
     </Layout>
   );
